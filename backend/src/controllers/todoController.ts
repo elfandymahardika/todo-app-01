@@ -1,0 +1,4 @@
+import type {Request,Response} from 'express';
+import {TodoModel} from '../models/todoModel.js';
+export async function getTodos(_req:Request,res:Response):Promise<void> { try { const todos=await TodoModel.getByUserId(res.locals.userId as number); res.status(200).json({success:true,data:todos}); } catch { res.status(500).json({success:false,message:'Gagal mengambil data.'}); } }
+export async function createTodo(req:Request,res:Response):Promise<void> { const {task}=req.body as {task:string}; try { const id=await TodoModel.create(res.locals.userId as number,task.trim()); res.status(201).json({success:true,message:'Tugas berhasil ditambahkan.',data:{id,task:task.trim(),is_completed:false}}); } catch { res.status(500).json({success:false,message:'Gagal menambahkan tugas.'}); } }
