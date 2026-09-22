@@ -1,8 +1,11 @@
 import cors from 'cors';
 import dotenv from 'dotenv';
 import express from 'express';
+import type {NextFunction,Request,Response} from 'express';
 import apiRoutes from './routes/api.js';
 dotenv.config();
 const app=express();
 app.use(cors({origin:process.env.FRONTEND_ORIGIN??'http://localhost:3000'})); app.use(express.json()); app.get('/',(_req,res)=>res.status(200).json({success:true,message:'Backend Todo berjalan.'})); app.use('/api',apiRoutes);
+app.use((req,res)=>res.status(404).json({success:false,message:`Route ${req.method} ${req.url} tidak ditemukan!`}));
+app.use((error:Error,_req:Request,res:Response,_next:NextFunction)=>{console.error('Terjadi error:',error.message); res.status(500).json({success:false,message:'Terjadi kesalahan pada server.'});});
 export default app;
