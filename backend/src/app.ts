@@ -1,11 +1,45 @@
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
-import express from 'express';
-import type {NextFunction,Request,Response} from 'express';
-import apiRoutes from './routes/api.js';
-dotenv.config();
-const app=express();
-app.use(cors({origin:process.env.FRONTEND_ORIGIN??'http://localhost:3000'})); app.use(express.json()); app.get('/',(_req,res)=>res.status(200).json({success:true,message:'Backend Todo berjalan.'})); app.use('/api',apiRoutes);
-app.use((req,res)=>res.status(404).json({success:false,message:`Route ${req.method} ${req.url} tidak ditemukan!`}));
-app.use((error:Error,_req:Request,res:Response,_next:NextFunction)=>{console.error('Terjadi error:',error.message); res.status(500).json({success:false,message:'Terjadi kesalahan pada server.'});});
+import routes from './routes/index.js';
+import { randomUUID } from 'crypto';
+import { sendSuccess, sendError } from './utils/response.js';
+
+const app = express();
+
+app.use(cors({ exposedHeaders: ['X-Request-Id'] }));
+app.use(express.json());
+
+// requestId per-request dikirim lewat header
+app.use((req, res, next) => {
+    const requestId = (req.headers['x-request-id'] as string) || randomUUID();
+    res.locals.requestId = requestId;
+    res.setHeader('X-Request-Id', requestId);
+    next();
+});
+
+app.use((req, res, next) => {
+    console.log(`[${res.locals.requestId}] ${req.method} ${req.originalUrl}`);
+    next();
+});
+
+// Route utama — cek apakah server berjalan
+app.get('/', (req, res) => {
+    sendSuccess(res, 'Backend Todo Praktikum Berjalan Mulus!');
+});
+
+// Daftarkan semua route dengan prefix /api
+app.use('/api', routes);
+
+// 404 Handler — dipanggil jika tidak ada route yang cocok
+app.use((req: Request, res: Response) => {
+    sendError(res, `Route ${req.method} ${req.url} tidak ditemukan!`, 404);
+});
+
+// Global Error Handler — menangkap error yang tidak tertangani
+// Harus ada 4 parameter (err, req, res, next) agar Express mengenalinya sebagai error handler
+app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+    console.error('Terjadi error:', err.message);
+    sendError(res, 'Terjadi kesalahan pada server.', 500);
+});
+
 export default app;

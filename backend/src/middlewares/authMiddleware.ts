@@ -1,3 +1,25 @@
-import type {NextFunction,Request,Response} from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-export function verifyToken(req:Request,res:Response,next:NextFunction):void { const authorization=req.headers.authorization; const token=authorization?.startsWith('Bearer ')?authorization.slice(7):undefined; if(!token){res.status(401).json({success:false,message:'Akses ditolak. Token tidak ditemukan.'});return;} try { const secret=process.env.JWT_SECRET; if(!secret) throw new Error('JWT_SECRET is not configured'); const decoded=jwt.verify(token,secret); if(typeof decoded!=='object'||typeof decoded.id!=='number') throw new Error('Invalid token payload'); res.locals.userId=decoded.id; next(); } catch { res.status(403).json({success:false,message:'Sesi tidak valid atau kadaluarsa.'}); } }
+import type { JwtUserPayload } from '../types/auth.js';
+import { sendError } from '../utils/response.js';
+
+export const verifyToken = (req: Request, res: Response, next: NextFunction): void => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+        sendError(res, 'Akses ditolak. Token tidak ditemukan!', 401);
+        return;
+    }
+
+    try {
+        const decoded: JwtUserPayload = jwt.verify(
+            token,
+            process.env.JWT_SECRET as string
+        ) as JwtUserPayload;
+        req.user = decoded;
+        next();
+    } catch {
+        sendError(res, 'Sesi tidak valid atau kedaluwarsa!', 403);
+    }
+};

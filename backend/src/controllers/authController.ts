@@ -1,6 +1,44 @@
-import type {Request,Response} from 'express';
+import type { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import {UserModel} from '../models/userModel.js';
-export async function register(req:Request,res:Response):Promise<void> { const {username,email,password}=req.body??{} as {username:string;email:string;password:string}; try { const hashedPassword=await bcrypt.hash(password,10); const id=await UserModel.create(username.trim(),email.trim().toLowerCase(),hashedPassword); res.status(201).json({success:true,message:'Registrasi berhasil.',data:{id,username,email}}); } catch(error:unknown) { if(typeof error==='object'&&error!==null&&'code' in error&&error.code==='ER_DUP_ENTRY'){res.status(409).json({success:false,message:'Username atau email sudah terdaftar.'});return;} res.status(500).json({success:false,message:'Error server.'}); } }
-export async function login(req:Request,res:Response):Promise<void> { const {username,password}=req.body??{} as {username:string;password:string}; try { const user=await UserModel.findByUsernameOrEmail(username.trim()); if(!user||!(await bcrypt.compare(password,user.password))){res.status(401).json({success:false,message:'Username/email atau password salah.'});return;} const secret=process.env.JWT_SECRET; if(!secret) throw new Error('JWT_SECRET is not configured'); const token=jwt.sign({id:user.id},secret,{expiresIn:'2h'}); res.status(200).json({success:true,message:'Login berhasil.',token,data:{id:user.id,username:user.username,email:user.email}}); } catch { res.status(500).json({success:false,message:'Error server.'}); } }
+import { UserModel } from '../models/userModel.js';
+import type { RegisterRequest, LoginRequest, JwtUserPayload } from '../types/auth.js';
+import { sendSuccess, sendError } from '../utils/response.js';
+
+export const register = async (req: Request, res: Response): Promise<void> => {
+    const payload: RegisterRequest = req.body;
+    try {
+        const hashedPassword = await bcrypt.hash(payload.password, 10);
+        await UserModel.create(payload.username, payload.email, hashedPassword);
+        sendSuccess(res, 'Registrasi berhasil!');
+    } catch (error: any) {
+        if (error.code === 'ER_DUP_ENTRY') {
+            sendError(res, 'Username atau Email sudah terdaftar!', 409);
+            return;
+        }
+        sendError(res, 'Error server.', 500);
+    }
+};
+
+export const login = async (req: Request, res: Response): Promise<void> => {
+    const payload: LoginRequest = req.body;
+    try {
+        const user = await UserModel.findByUsername(payload.username);
+
+        if (!user || !(await bcrypt.compare(payload.password, user.password))) {
+            sendError(res, 'Username atau password salah!', 401);
+            return;
+        }
+
+        const tokenPayload: JwtUserPayload = {
+            id: user.id, username: user.username, email: user.email
+        };
+        const token = jwt.sign(
+            tokenPayload,
+            process.env.JWT_SECRET as string, { expiresIn: '2h' }
+        );
+        sendSuccess(res, 'Login berhasil!', { token });
+    } catch {
+        sendError(res, 'Error server.', 500);
+    }
+};
